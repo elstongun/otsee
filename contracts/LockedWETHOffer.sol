@@ -6,27 +6,40 @@ import {IERC20, IWETHToken, IOwnable} from "./Interfaces.sol";
 contract LockedWETHOffer {
     address public immutable factory;
     address public immutable seller;
-    address public immutable tokenWanted;
-    uint256 public immutable amountWanted;
+    uint256 public immutable usdcPerWETH;
+    uint256 public immutable finalusdcPerWETH;
+    uint256 public wethSize;
     uint256 public immutable fee; // in bps
+    uint256 public immutable duration;
+    uint256 public immutable endingBlock;
+    uint256 public immutable discountPerBlock;
+
     bool public hasEnded = false;
 
-    IWETHToken WETH = IWETHToken(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
+    uint256 startingBlock;
 
-    event OfferFilled(address buyer, uint256 WETHAmount, address token, uint256 tokenAmount);
+    event Filled(address buyer, uint256 WETHAmount, uint256 AmountFilled, bool hasEnded);
     event OfferCanceled(address seller, uint256 WETHAmount);
 
     constructor(
         address _seller,
-        address _tokenWanted,
-        uint256 _amountWanted,
-        uint256 _fee
+        uint256 _usdcPerWETH,
+        uint256 _finalusdcPerWETH,
+        uint256 _fee,
+        uint256 _duration,
+        uint256 _wethSize
     ) {
         factory = msg.sender;
         seller = _seller;
-        tokenWanted = _tokenWanted;
-        amountWanted = _amountWanted;
+        usdcPerWETH = _usdcPerWETH;
+        finalusdcPerWETH = _finalusdcPerWETH;
         fee = _fee;
+        duration = _duration;
+        wethSize = _wethSize;
+        endingBlock = startingBlock - duration;
+        discountPerBlock = (usdcPerWETH - finalusdcPerWETH) / duration;
     }
 
     // release trapped funds
@@ -40,37 +53,55 @@ contract LockedWETHOffer {
         }
     }
 
-    function fill() public {
+    function fundContract() public {
+        require(msg.sender == seller);
+        require(IERC20(weth).balanceOf(msg.sender) >= wethSize);
+        IERC20(weth).transferFrom(msg.sender, address(this), wethSize);
+        //officially begin the countdown
+        startingBlock = block.number;
+    }
+
+    function fill(uint256 amountOfUSDC) public {
+        
         require(hasWETH(), "no WETH balance");
         require(!hasEnded, "sell has been previously cancelled");
-        uint256 balance = WETH.totalBalanceOf(address(this));
-        uint256 txFee = mulDiv(amountWanted, fee, 10000);
+        require(block.number >= endingBlock);
 
-        // cap fee at 25k
-        uint256 maxFee = 25000 * 10**IERC20(tokenWanted).decimals();
-        txFee = txFee > maxFee ? maxFee : txFee;
+        //getting live data
+        uint256 currentPricePerWETH = getCurrentPrice();
+        uint256 txFee = mulDiv(amountOfUSDC, fee, 10000);
+        uint256 amountWantedAfterFee = amountOfUSDC - txFee;
+        uint256 wethRequested = (amountOfUSDC / currentPricePerWETH) * 1e18; //scaled to WETH
 
-        uint256 amountAfterFee = amountWanted - txFee;
-        // collect fee
-        safeTransferFrom(tokenWanted, msg.sender, IOwnable(factory).owner(), txFee);
-        // exchange assets
-        safeTransferFrom(tokenWanted, msg.sender, seller, amountAfterFee);
-        WETH.transferAll(msg.sender);
-        hasEnded = true;
-        emit OfferFilled(msg.sender, balance, tokenWanted, amountWanted);
+        if ((wethSize - getCurrentBalance()) == 0) {
+            hasEnded = true;
+        } else {
+            hasEnded = false;
+        }
+        emit Filled(msg.sender, wethRequested, amountOfUSDC, hasEnded);
+
+        
+        //transfers from the buyer
+        IERC20(usdc).transferFrom(msg.sender, IOwnable(factory).owner(), txFee);
+        IERC20(usdc).transferFrom(msg.sender, seller, amountWantedAfterFee);
+
+        //transfer to the buyer
+        IERC20(weth).transfer(msg.sender, wethRequested);
+
     }
 
     function cancel() public {
         require(hasWETH(), "no WETH balance");
         require(msg.sender == seller);
-        uint256 balance = WETH.totalBalanceOf(address(this));
-        WETH.transferAll(seller);
+        uint256 balance = IERC20(weth).balanceOf(address(this));
+        
+        IERC20(weth).transfer(msg.sender, balance);
         hasEnded = true;
         emit OfferCanceled(seller, balance);
     }
 
     function hasWETH() public view returns (bool) {
-        return WETH.totalBalanceOf(address(this)) > 0;
+        return IERC20(weth).balanceOf(address(this)) > 0;
     }
 
     function mulDiv(
@@ -101,4 +132,39 @@ contract LockedWETHOffer {
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(0x23b872dd, from, to, value));
         require(success && (data.length == 0 || abi.decode(data, (bool))), "safeTransferFrom: failed");
     }
+
+    function getCurrentPrice() public view returns (uint256) {
+        if (block.number <= endingBlock) {
+            uint256 blockDelta = block.number - startingBlock;
+            return usdcPerWETH - (blockDelta * discountPerBlock);
+        } else {
+            return finalusdcPerWETH;
+        }
+    }
+
+    function getCurrentBalance() public view returns (uint256) {
+        return IERC20(weth).balanceOf(address(this));
+    }
+    function getAmountFilled() public view returns (uint256) {
+        return (wethSize - getCurrentBalance());
+    }
+    function getwethSize() public view returns (uint256) {
+        return wethSize;
+    }
+    function getDuration() public view returns (uint256) {
+        return duration;
+    }
+    function getEndingBlock() public view returns (uint256) {
+        return endingBlock;
+    }
+    function getstartingPrice() public view returns (uint256) {
+        return usdcPerWETH;
+    }
+    function getFinalPrice() public view returns (uint256) {
+        return finalusdcPerWETH;
+    }
+    function getSeller() public view returns (address) {
+        return seller;
+    }
+
 }

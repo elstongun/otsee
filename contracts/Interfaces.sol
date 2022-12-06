@@ -6,6 +6,8 @@ interface IERC20 {
 
     function approve(address spender, uint256 amount) external returns (bool);
 
+    function transfer(address to, uint256 amount) external returns (bool);
+    
     function transferFrom(
         address from,
         address to,
@@ -25,6 +27,14 @@ interface IWETHToken {
 
 interface ILockedWETHOffer {
     function amountWanted() external view returns (uint256);
+
+    function wethSize() external view returns (uint256);
+
+    function usdcPerWETH() external view returns (uint256);
+
+    function finalusdcPerWETH() external view returns (uint256);
+
+    function endingBlock() external view returns (uint256);
 
     function tokenWanted() external view returns (address);
 }
