@@ -11,7 +11,6 @@ contract LockedWETHOffer {
     uint256 public wethSize;
     uint256 public immutable fee; // in bps
     uint256 public immutable duration;
-    uint256 public immutable discountPerBlock;
 
     bool public hasEnded = false;
 
@@ -39,7 +38,6 @@ contract LockedWETHOffer {
         fee = _fee;
         duration = _duration;
         wethSize = _wethSize;
-        discountPerBlock = (usdcPerWETH - finalusdcPerWETH) / duration;
     }
 
     // release trapped funds
@@ -74,13 +72,6 @@ contract LockedWETHOffer {
         uint256 txFee = mulDiv(amountOfUSDC, fee, 10000);
         uint256 amountWantedAfterFee = amountOfUSDC - txFee;
         uint256 wethRequested = (amountOfUSDC / currentPricePerWETH) * 1e18; //scaled to WETH
-
-        if ((wethSize - getCurrentBalance()) == 0) {
-            hasEnded = true;
-        } else {
-            hasEnded = false;
-        }
-
         
         //transfers from the buyer
         IERC20(usdc).transferFrom(msg.sender, IOwnable(factory).owner(), txFee);
@@ -135,6 +126,7 @@ contract LockedWETHOffer {
     }
 
     function getCurrentPrice() public view returns (uint256) {
+        uint256 discountPerBlock = (usdcPerWETH - finalusdcPerWETH) / duration;
         if (block.number <= endingBlock) {
             uint256 blockDelta = block.number - startingBlock;
             return usdcPerWETH - (blockDelta * discountPerBlock);
@@ -167,8 +159,4 @@ contract LockedWETHOffer {
     function getSeller() public view returns (address) {
         return seller;
     }
-    function gethasEnded() public view returns (bool) {
-        return hasEnded;
-    }
-
 }
