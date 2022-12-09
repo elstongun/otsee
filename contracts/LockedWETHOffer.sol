@@ -11,15 +11,16 @@ contract LockedWETHOffer {
     uint256 public wethSize;
     uint256 public immutable fee; // in bps
     uint256 public immutable duration;
-    uint256 public immutable endingBlock;
     uint256 public immutable discountPerBlock;
 
     bool public hasEnded = false;
 
     address weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address usdc = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
-    uint256 startingBlock;
+    uint256 public startingBlock;
+    uint256 public endingBlock;
 
+    event OfferFunded(address seller, uint256 wethSize, uint256 duration);
     event Filled(address buyer, uint256 WETHAmount, uint256 AmountFilled, bool hasEnded);
     event OfferCanceled(address seller, uint256 WETHAmount);
 
@@ -38,7 +39,6 @@ contract LockedWETHOffer {
         fee = _fee;
         duration = _duration;
         wethSize = _wethSize;
-        endingBlock = startingBlock - duration;
         discountPerBlock = (usdcPerWETH - finalusdcPerWETH) / duration;
     }
 
@@ -59,6 +59,8 @@ contract LockedWETHOffer {
         IERC20(weth).transferFrom(msg.sender, address(this), wethSize);
         //officially begin the countdown
         startingBlock = block.number;
+        endingBlock = startingBlock - duration;
+        emit OfferFunded(seller, wethSize, duration);
     }
 
     function fill(uint256 amountOfUSDC) public {
@@ -78,7 +80,6 @@ contract LockedWETHOffer {
         } else {
             hasEnded = false;
         }
-        emit Filled(msg.sender, wethRequested, amountOfUSDC, hasEnded);
 
         
         //transfers from the buyer
@@ -87,7 +88,7 @@ contract LockedWETHOffer {
 
         //transfer to the buyer
         IERC20(weth).transfer(msg.sender, wethRequested);
-
+        emit Filled(msg.sender, wethRequested, amountOfUSDC, hasEnded);
     }
 
     function cancel() public {
@@ -165,6 +166,9 @@ contract LockedWETHOffer {
     }
     function getSeller() public view returns (address) {
         return seller;
+    }
+    function gethasEnded() public view returns (bool) {
+        return hasEnded;
     }
 
 }
