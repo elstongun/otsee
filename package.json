@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/elstongun/WETHOTC/issues"
   },
-  "homepage": "https://github.com/elstongun/WETHOTC#readme"
+  "homepage": "https://github.com/elstongun/WETHOTC#readme",
+  "dependencies": {
+    "dotc": "^1.0.0"
+  }
 }
