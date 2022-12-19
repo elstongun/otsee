@@ -7,7 +7,6 @@ contract LockedWETHOffer {
     address public immutable factory;
     address public immutable seller;
     uint256 public immutable usdcPerWETH;
-    uint256 public immutable finalusdcPerWETH;
     uint256 public wethSize;
     uint256 public immutable fee; // in bps
     uint256 public immutable duration;
@@ -26,7 +25,6 @@ contract LockedWETHOffer {
     constructor(
         address _seller,
         uint256 _usdcPerWETH,
-        uint256 _finalusdcPerWETH,
         uint256 _fee,
         uint256 _duration,
         uint256 _wethSize
@@ -34,7 +32,6 @@ contract LockedWETHOffer {
         factory = msg.sender;
         seller = _seller;
         usdcPerWETH = _usdcPerWETH;
-        finalusdcPerWETH = _finalusdcPerWETH;
         fee = _fee;
         duration = _duration;
         wethSize = _wethSize;
@@ -68,7 +65,7 @@ contract LockedWETHOffer {
         require(block.number >= endingBlock);
 
         //getting live data
-        uint256 currentPricePerWETH = getCurrentPrice();
+        uint256 currentPricePerWETH = usdcPerWETH;
         uint256 txFee = mulDiv(amountOfUSDC, fee, 10000);
         uint256 amountWantedAfterFee = amountOfUSDC - txFee;
         uint256 wethRequested = (amountOfUSDC / currentPricePerWETH) * 1e18; //scaled to WETH
@@ -125,16 +122,6 @@ contract LockedWETHOffer {
         require(success && (data.length == 0 || abi.decode(data, (bool))), "safeTransferFrom: failed");
     }
 
-    function getCurrentPrice() public view returns (uint256) {
-        uint256 discountPerBlock = (usdcPerWETH - finalusdcPerWETH) / duration;
-        if (block.number <= endingBlock) {
-            uint256 blockDelta = block.number - startingBlock;
-            return usdcPerWETH - (blockDelta * discountPerBlock);
-        } else {
-            return finalusdcPerWETH;
-        }
-    }
-
     function getCurrentBalance() public view returns (uint256) {
         return IERC20(weth).balanceOf(address(this));
     }
@@ -152,9 +139,6 @@ contract LockedWETHOffer {
     }
     function getstartingPrice() public view returns (uint256) {
         return usdcPerWETH;
-    }
-    function getFinalPrice() public view returns (uint256) {
-        return finalusdcPerWETH;
     }
     function getSeller() public view returns (address) {
         return seller;

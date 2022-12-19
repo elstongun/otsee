@@ -8,16 +8,16 @@ contract OfferFactory is Ownable {
     uint256 public fee = 30; // in bps
     LockedWETHOffer[] public offers;
 
-    event OfferCreated(address offer, uint256 usdcPerWETH, uint256 finalusdcPerWETH, uint256 duration, uint256 wethSize);
+    event OfferCreated(address offer, uint256 usdcPerWETH, uint256 duration, uint256 wethSize);
 
     function setFee(uint256 _fee) public onlyOwner {
         fee = _fee;
     }
 
-    function createOffer(uint256 _usdcPerWETH, uint256 _finalusdcPerWETH, uint256 _duration, uint256 _wethSize) public returns (LockedWETHOffer) {
-        LockedWETHOffer offer = new LockedWETHOffer(msg.sender, _usdcPerWETH, _finalusdcPerWETH, fee, _duration, _wethSize);
+    function createOffer(uint256 _usdcPerWETH, uint256 _duration, uint256 _wethSize) public returns (LockedWETHOffer) {
+        LockedWETHOffer offer = new LockedWETHOffer(msg.sender, _usdcPerWETH, fee, _duration, _wethSize);
         offers.push(offer);
-        emit OfferCreated(address(offer), _usdcPerWETH, _finalusdcPerWETH, _duration, _wethSize);
+        emit OfferCreated(address(offer), _usdcPerWETH, _duration, _wethSize);
         return offer;
     }
 
